@@ -4,6 +4,7 @@
   "compilerOptions": {
     "allowJs": false,
     "baseUrl": "app/scripts/modules",
+    "diagnostics": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "lib": ["es2016", "dom"],
@@ -21,7 +22,7 @@
     "strictNullChecks": false, // should really get to a place where we can turn this on
     "target": "es5",
     "typeRoots": [
-      "node_modules/@types/"
+      "node_modules/@types"
     ],
     "types": [
       "angular",

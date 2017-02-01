@@ -1,58 +1,50 @@
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+
 const webpack = require('webpack');
-// const HappyPack = require('happypack');
+const {
+  DllPlugin,
+  LoaderOptionsPlugin,
+  ProgressPlugin,
+} = require('webpack');
+
 const path = require('path');
+const _root = path.resolve(__dirname);
+function root(args) {
+  args = Array.prototype.slice.call(arguments, 0);
+  return path.join.apply(path, [_root].concat(args));
+}
+
 const NODE_MODULE_PATH = path.join(__dirname, 'node_modules');
 const fs = require('fs');
 
+const EVENT = process.env.npm_lifecycle_event || '';
+const DLL = EVENT.includes('dll');
+
+const DLL_VENDORS = [
+  'jquery',
+  'angular',
+  'angular-ui-bootstrap',
+  'angular-ui-router',
+  'source-sans-pro',
+  'angular-cache',
+  'angular-marked',
+  'angular-messages',
+  'angular-sanitize',
+  'bootstrap',
+  'clipboard',
+  'd3',
+  'jquery-ui',
+  'moment-timezone',
+  'rxjs'
+];
+
 function configure(IS_TEST) {
 
-  // const POOL_SIZE = IS_TEST ? 3 : 6;
-  // const happyThreadPool = HappyPack.ThreadPool({size: POOL_SIZE});
-  function getTypescriptLinterLoader() {
-    return {
-      enforce: 'pre',
-      test: IS_TEST ? /\.spec.ts$/ : /\.ts$/,
-      use: 'tslint-loader'
-    };
-  }
-
-  function getJavascriptLoader() {
-    return {
-      test: /\.js$/,
-      exclude: /node_modules(?!\/clipboard)/,
-      use: [
-        'ng-annotate-loader',
-        'angular-loader',
-        'babel-loader',
-        'envify-loader',
-        'eslint-loader'
-      ]
-    };
-  }
-
-  function getLessLoader() {
-    return {
-      test: /\.less$/,
-      use: [
-        'style-loader',
-        'css-loader',
-        'less-loader'
-      ]
-    };
-  }
-
-  function getHtmlLoader() {
-    return {
-      test: /\.html$/,
-      use: [
-        'ngtemplate-loader?relativeTo=' + (path.resolve(__dirname)) + '/',
-        'html-loader'
-      ]
-    };
-  }
-
   const config = {
+    plugins: [
+      new ProgressPlugin()
+    ],
     output: IS_TEST ? {} : {
         path: path.join(__dirname, 'build', 'webpack', process.env.SPINNAKER_ENV || ''),
         filename: '[name].js',
@@ -72,6 +64,7 @@ function configure(IS_TEST) {
     },
     module: {
       rules: [
+        { enforce: 'pre', test: IS_TEST ? /\.spec.ts$/ : /\.ts$/, use: 'tslint-loader' },
         {
           test: require.resolve('jquery'),
           use: [
@@ -79,15 +72,28 @@ function configure(IS_TEST) {
             'expose-loader?jQuery'
           ]
         },
+        { test: /\.json$/, loader: 'json-loader' },
+        { test: /\.ts$/, use: 'ts-loader', exclude: /node_modules/ },
         {
-          test: /\.json$/,
-          loader: 'json-loader'
+          test: /\.js$/,
+          exclude: /node_modules(?!\/clipboard)/,
+          use: [
+            'ng-annotate-loader',
+            'angular-loader',
+            'babel-loader',
+            'envify-loader',
+            'eslint-loader'
+          ]
         },
         {
-          test: /\.ts$/,
-          use: 'ts-loader',
-          exclude: /node_modules/
+          test: /\.less$/,
+          use: [
+            'style-loader',
+            'css-loader',
+            'less-loader'
+          ]
         },
+        {test: /\.(woff|otf|ttf|eot|svg|png|gif|ico)(.*)?$/, use: 'file-loader'},
         {
           test: /\.css$/,
           use: [
@@ -96,8 +102,11 @@ function configure(IS_TEST) {
           ]
         },
         {
-          test: /\.(woff|otf|ttf|eot|svg|png|gif|ico)(.*)?$/,
-          use: 'file-loader'
+          test: /\.html$/,
+          use: [
+            'ngtemplate-loader?relativeTo=' + (path.resolve(__dirname)) + '/',
+            'html-loader'
+          ]
         }
       ],
     },
@@ -117,37 +126,25 @@ function configure(IS_TEST) {
     }
   }
 
-  config.module.rules.push(
-    getTypescriptLinterLoader(),
-    getJavascriptLoader(),
-    getLessLoader(),
-    getHtmlLoader());
+  if (DLL) {
 
-  if (IS_TEST) {
+    config.plugins.push(
+      new DllPlugin({
+        name: '[name]',
+        path: root('dll/[name]-manifest.json'),
+      })
+    );
 
-    // this is broken.  commenting out for now due to
-    // https://github.com/deepsweet/istanbul-instrumenter-loader/issues/32
-    // which, in turn, is waiting on https://github.com/karma-runner/karma-coverage/pull/251
-    // i'd like to switch to a different reporter tool, e.g., karma-remap-istanbul has good output.
-    // config.module.rules.push({
-    //   test: /\.js$/,
-    //   enforce: 'post',
-    //   exclude: /(test|node_modules|bower_components)\//,
-    //   use: 'istanbul-instrumenter-loader'
-    // });
-
-    config.plugins = [];
-    //config.plugins = [
-    //  new HappyPack({
-    //    id: 'jstest',
-    //    loaders: ['ng-annotate!angular!babel!envify!eslint'],
-    //    threadPool: happyThreadPool,
-    //    cacheContext: {
-    //      env: process.env,
-    //    },
-    //  })
-    //];
-  } else {
+    config.entry = {
+      vendor: [...DLL_VENDORS],
+      settings: ['./settings.js']
+    };
+    config.output = {
+      path: root('dll'),
+      filename: '[name].dll.js',
+      library: '[name]'
+    }
+  } else if (!IS_TEST) {
 
     config.entry = {
       settings: './settings.js',
@@ -159,51 +156,28 @@ function configure(IS_TEST) {
       ]
     };
 
-    config.plugins = [
-      new webpack.optimize.CommonsChunkPlugin({
-        name: 'vendor',
-        filename: 'vendor.bundle.js'
-      }),
-      new webpack.optimize.CommonsChunkPlugin('init'),
-      new HtmlWebpackPlugin({
-        title: 'Spinnaker',
-        template: './app/index.deck',
-        favicon: 'app/favicon.ico',
-        inject: true,
+    config.plugins.push(new webpack.optimize.CommonsChunkPlugin({ name: 'vendor', filename: 'vendor.bundle.js' }));
+    config.plugins.push(new webpack.optimize.CommonsChunkPlugin('init'));
+    config.plugins.push(new HtmlWebpackPlugin({
+      title: 'Spinnaker',
+      template: './app/index.deck',
+      favicon: 'app/favicon.ico',
+      inject: true,
 
-        // default order is based on webpack's compile process
-        // with the migration to webpack two, we need this or
-        // settings.js is put at the end of the <script> blocks
-        // which breaks the booting of the app.
-        chunksSortMode: (a, b) => {
-          const chunks = ['init', 'vendor', 'settings', 'app'];
-          return chunks.indexOf(a.names[0]) - chunks.indexOf(b.names[0]);
-        }
-      }),
-      //new HappyPack({
-      //  id: 'js',
-      //  loaders: ['ng-annotate!angular!babel!envify!eslint'],
-      //  threadPool: happyThreadPool,
-      //  cacheContext: {
-      //    env: process.env,
-      //  },
-      //}),
-      //new HappyPack({
-      //  id: 'html',
-      //  loaders: ['ngtemplate?relativeTo=' + (path.resolve(__dirname)) + '/!html'],
-      //  threadPool: happyThreadPool,
-      //}),
-      //new HappyPack({
-      //  id: 'less',
-      //  loaders: ['style!css!less'],
-      //  threadPool: happyThreadPool,
-      //}),
-    ];
+      // default order is based on webpack's compile process with the migration to webpack two, we need this or
+      // settings.js is put at the end of the <script> blocks which breaks the booting of the app.
+      chunksSortMode: (a, b) => {
+        const chunks = ['init', 'vendor', 'settings', 'app'];
+        return chunks.indexOf(a.names[0]) - chunks.indexOf(b.names[0]);
+      }
+    }));
+
+    config.plugins.push(new CopyWebpackPlugin([{from: 'dll'}]));
   }
 
   // this is temporary and will be deprecated in WP3.  moving forward,
   // loaders will individually need to accept this as an option.
-  config.plugins.push(new webpack.LoaderOptionsPlugin({debug: !IS_TEST}));
+  config.plugins.push(new LoaderOptionsPlugin({debug: !IS_TEST}));
 
   return config;
 }
