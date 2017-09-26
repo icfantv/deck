@@ -5,7 +5,9 @@ import { IServerGroup } from 'core/domain';
 
 export class ServerGroupReader {
 
-  constructor(private $log: ILogService, private API: Api) { 'ngInject'; }
+  constructor(private $log: ILogService, private API: Api) {
+    'ngInject';
+  }
 
   public getScalingActivities(serverGroup: IServerGroup): IPromise<any[]> {
     return this.API

@@ -1,4 +1,5 @@
 export interface IFilterType {
+  highVolume?: boolean;
   key: string;
   modifier: string;
   text: string;
@@ -38,6 +39,10 @@ export class FilterTypeRegistry {
 
   public getFilterByModifier(modifier: string): IFilterType {
     return [...this.registry.values()].find((type: IFilterType) => modifier === type.modifier);
+  }
+
+  public getRegisteredFilterKeys(): string[] {
+    return [...this.registry.keys()];
   }
 
   public getValues(): IFilterType[] {

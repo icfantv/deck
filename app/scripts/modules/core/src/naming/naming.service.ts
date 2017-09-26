@@ -103,7 +103,8 @@ export class NamingService {
   }
 }
 
-export const NAMING_SERVICE = 'spinnaker.core.naming.service';
+export const namingService = new NamingService();
 
+export const NAMING_SERVICE = 'spinnaker.core.naming.service';
 module(NAMING_SERVICE, [])
   .service('namingService', NamingService);
